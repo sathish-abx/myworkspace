@@ -24,14 +24,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const checkUserStatus = async (currentUser: User | null) => {
     if (currentUser) {
-      // Reload user to fetch updated emailVerified status from Firebase
-      try {
-        await currentUser.reload();
-      } catch (err) {
-        console.warn('Failed to reload current user:', err);
-      }
-      setUser(auth.currentUser);
-      setEmailVerified(auth.currentUser?.emailVerified ?? false);
+      setUser(currentUser);
+      setEmailVerified(currentUser.emailVerified);
     } else {
       setUser(null);
       setEmailVerified(false);
@@ -39,8 +33,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      await checkUserStatus(currentUser);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      checkUserStatus(currentUser);
       setLoading(false);
     });
 

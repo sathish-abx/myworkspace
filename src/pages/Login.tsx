@@ -1,10 +1,11 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   signInWithEmailAndPassword, 
   sendPasswordResetEmail, 
   auth 
 } from '../lib/firebase';
+import { useAuth } from '../context/AuthContext';
 import { Sparkles, Eye, EyeOff, Lock, Mail, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 export const Login = () => {
@@ -19,6 +20,13 @@ export const Login = () => {
   const [resetLoading, setResetLoading] = useState(false);
 
   const navigate = useNavigate();
+  const { user, emailVerified: contextEmailVerified } = useAuth();
+
+  useEffect(() => {
+    if (user && contextEmailVerified) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, contextEmailVerified, navigate]);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -39,14 +47,11 @@ export const Login = () => {
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
-      const user = userCredential.user;
+      const loggedInUser = userCredential.user;
 
-      if (!user.emailVerified) {
-        // Direct unverified user to email verification page
-        navigate('/verify-email');
-      } else {
-        // Verified user goes to dashboard
-        navigate('/dashboard');
+      if (!loggedInUser.emailVerified) {
+        await auth.signOut();
+        setError('Please verify your email address before logging in. Check your inbox.');
       }
     } catch (err: any) {
       console.error('Login error:', err);

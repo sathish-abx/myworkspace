@@ -3,7 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { initializeApp, getApps, cert, applicationDefault } from 'firebase-admin/app';
+import { readFileSync } from 'fs';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 
@@ -16,43 +17,47 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Initialize Firebase Admin SDK
+
+/* Initialize Firebase Admin SDK */
 const initializeFirebaseAdmin = () => {
   if (getApps().length > 0) return;
 
-  const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'myworkspace-6e5b0';
-  
+  let serviceAccount;
+
+  // Option 1: Read credentials from the .env variable
   if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+    const rawKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY.trim();
+
+    serviceAccount = rawKey.startsWith('{')
+      ? JSON.parse(rawKey)
+      : JSON.parse(Buffer.from(rawKey, 'base64').toString('utf8'));
+  } else {
+    // Option 2: Read credentials from a local JSON file
+    const keyPath = path.join(__dirname, 'serviceAccountKey.json');
+
     try {
-      const rawKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY.trim();
-      const serviceAccount = rawKey.startsWith('{')
-        ? JSON.parse(rawKey)
-        : JSON.parse(Buffer.from(rawKey, 'base64').toString('utf8'));
-      
-      initializeApp({
-        credential: cert(serviceAccount),
-        projectId,
-      });
-      console.log('Firebase Admin initialized with service account key');
-      return;
-    } catch (err) {
-      console.warn('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY, falling back:', err.message);
+      serviceAccount = JSON.parse(
+        readFileSync(keyPath, 'utf8')
+      );
+    } catch (error) {
+      throw new Error(
+        'Firebase credentials missing. Set FIREBASE_SERVICE_ACCOUNT_KEY ' +
+        'in .env or add backend/serviceAccountKey.json.'
+      );
     }
   }
 
-  // Fallback to application default or project ID
-  try {
-    initializeApp({
-      credential: applicationDefault(),
-      projectId,
-    });
-    console.log('Firebase Admin initialized with Application Default Credentials');
-  } catch (err) {
-    console.log('Initializing Firebase Admin with default Project ID config');
-    initializeApp({
-      projectId,
-    });
-  }
+  initializeApp({
+    credential: cert(serviceAccount),
+    projectId:
+      serviceAccount.project_id ||
+      process.env.FIREBASE_PROJECT_ID ||
+      process.env.VITE_FIREBASE_PROJECT_ID,
+  });
+
+  console.log('Firebase Admin initialized with service account key');
 };
+
 
 initializeFirebaseAdmin();
 const db = getFirestore();

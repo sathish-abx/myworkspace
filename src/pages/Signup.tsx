@@ -16,6 +16,7 @@ export const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const navigate = useNavigate();
 
   const handleSignup = async (e: FormEvent) => {
@@ -52,13 +53,24 @@ export const Signup = () => {
       // 2. Update display name in Firebase Auth
       await updateProfile(user, { displayName: fullName.trim() });
 
-      // 3. Send real verification email using Firebase built-in service
-      await sendEmailVerification(user);
-
-      // 4. Navigate to verification-pending page
-      navigate('/verify-email');
+      try {
+        // 3. Send real verification email using Firebase built-in service
+        await sendEmailVerification(user);
+        // Sign out to force login later
+        await auth.signOut();
+        
+        setToast({ type: 'success', message: 'Sign-up successful! Verification email sent.' });
+        setTimeout(() => {
+          navigate('/login');
+        }, 3000);
+      } catch (emailErr: any) {
+        // If email sending fails, delete user to prevent duplicate accounts
+        await user.delete();
+        setToast({ type: 'error', message: 'Failed to send verification email. Please try again.' });
+      }
     } catch (err: any) {
       console.error('Signup error:', err);
+      setToast({ type: 'error', message: 'Sign-up failed' });
       if (err.code === 'auth/email-already-in-use') {
         setError('An account with this email address already exists. Please log in.');
       } else if (err.code === 'auth/invalid-email') {
@@ -76,6 +88,22 @@ export const Signup = () => {
   return (
     <div className="auth-container">
       <div className="auth-card">
+        {toast && (
+          <div style={{
+            position: 'fixed',
+            top: '20px',
+            left: '20px',
+            padding: '12px 20px',
+            borderRadius: '8px',
+            backgroundColor: toast.type === 'success' ? '#10b981' : '#ef4444',
+            color: '#fff',
+            fontWeight: '600',
+            zIndex: 9999,
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+          }}>
+            {toast.message}
+          </div>
+        )}
         <div className="auth-header">
           <div className="auth-logo">
             <Sparkles size={28} />
